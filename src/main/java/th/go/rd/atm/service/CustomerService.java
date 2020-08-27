@@ -1,7 +1,9 @@
 package th.go.rd.atm.service;
 
 import org.mindrot.jbcrypt.BCrypt;
+import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.stereotype.Service;
+import th.go.rd.atm.data.CustomerRepository;
 import th.go.rd.atm.model.Customer;
 
 import javax.annotation.PostConstruct;
@@ -10,27 +12,40 @@ import java.util.List;
 
 @Service
 public class CustomerService {
+    private CustomerRepository repository;
 
-    // List เป็น interface ของ ArrayList
-    private List<Customer> customerList;
-
-    @PostConstruct
-    public void postConstruct() {
-        this.customerList = new ArrayList<>();
+    public CustomerService(CustomerRepository repository) {
+        this.repository = repository;
     }
 
     public void createCustomer(Customer customer) {
-
-        // .... hash pin HERE ....
         String hashPin = hash(customer.getPin());
         customer.setPin(hashPin);
+        repository.save(customer);
+    }
 
-        customerList.add(customer);
+    public Customer findCustomer(int id) {
+        try {
+            return repository.findById(id);
+        }
+        catch (EmptyResultDataAccessException e){
+            return null;
+        }
     }
 
     public List<Customer> getCustomers() {
+        return repository.findAll();
+    }
 
-        return new ArrayList<>(this.customerList);
+    public Customer checkPin(Customer inputCustomer) {
+        Customer storedCustomer = findCustomer(inputCustomer.getId());
+
+        if (storedCustomer != null) {
+            String storedPin = storedCustomer.getPin();
+            if (BCrypt.checkpw(inputCustomer.getPin(), storedPin))
+                return storedCustomer;
+        }
+        return null;
     }
 
     private String hash(String pin) {
@@ -38,27 +53,5 @@ public class CustomerService {
         return BCrypt.hashpw(pin, salt);
     }
 
-    public Customer findCustomer(int id) {
-        for (Customer customer : customerList) {
-            if (customer.getId() == id)
-                return customer;
-        }
-        return null;
-    }
-    public Customer checkPin(Customer inputCustomer) {
-        // 1. หา customer ที่มี id ตรงกับพารามิเตอร์
-        Customer storedCustomer = findCustomer(inputCustomer.getId());
-
-        // 2. ถ้ามี id ตรง ให้เช็ค pin ว่าตรงกันไหม โดยใช้ฟังก์ชันเกี่ยวกับ hash
-        if (storedCustomer != null) {
-            String storedPin = storedCustomer.getPin();
-            if (BCrypt.checkpw(inputCustomer.getPin(), storedPin))
-                return storedCustomer;
-        }
-        // 3. ถ้าไม่ตรง ต้องคืนค่า null
-        return null;
-    }
-
-
-
 }
+
